@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 
 from models.musicgen import MusicGenModel
 from models.stable_audio import StableAudioOpenModel
-from audio.postprocess import exact_loop_cut, normalize_audio, fade_audio, trim_silence
+from audio.postprocess import normalize_audio, fade_audio
 from audio.utils import save_wav, get_next_filename
 from config import LOOPS_DIR, ONESHOTS_DIR
 
@@ -21,14 +21,17 @@ async def lifespan(app: FastAPI):
     try:
         musicgen.load()
         stable_audio.load()
+        # acestep.load() # Start lazily for now to save VRAM
     except Exception as e:
         print(f"Error loading models: {e}")
     yield
     # clear vram
-    if musicgen.model:
-        del musicgen.model
+    if musicgen.pipe:
+        del musicgen.pipe
     if stable_audio.pipe:
         del stable_audio.pipe
+    # if acestep.pipe:
+    #      del acestep.pipe
     torch.cuda.empty_cache()
 
 app = FastAPI(lifespan=lifespan)
@@ -68,36 +71,44 @@ async def generate(req: GenerateRequest):
         generated_files = []
 
         if "loop" in req_type:
-            # --- MUSICGEN (LOOPS) ---
-            bpm = req.bpm if req.bpm else 120
-            
-            # assume bars if length is small (e.g. < 32)
-            bars = req.length if req.length else 2
-            duration_sec = (60 / bpm) * (bars * 4)
-            
-            full_prompt = f"{req.prompt}, {bpm} bpm"
-            if req.key:
-                full_prompt += f", {req.key}"
+            # --- ACE-STEP (FAST LOOPS) ---
+            # FUTURE TODO: Implement ACE-Step when Python 3.13 support arrives
+            # if "ace" in req_type:
+                # ... implementation commented out ...
+             
+            # --- MUSICGEN (DEFAULT LOOPS) ---
+            # else:
+            if True: # Always use MusicGen for now
+                if "ace" in req_type: 
+                     pass
+                
+                bpm = req.bpm if req.bpm else 120
+                
+                # assume bars if length is small (e.g. < 32)
+                bars = req.length if req.length else 2
+                duration_sec = (60 / bpm) * (bars * 4)
+                
+                full_prompt = f"{req.prompt}, {bpm} bpm"
+                if req.key:
+                    full_prompt += f", {req.key}"
 
-            print(f"Generating Loop: {full_prompt}, duration: {duration_sec}s")
-            
-            raw_results = musicgen.generate(
-                prompt=full_prompt, 
-                duration_seconds=duration_sec, 
-                variations=req.variations,
-                guidance_scale=req.guidance,
-                temperature=req.temperature,
-                top_k=req.top_k,
-                seed=req.seed
-            )
+                print(f"Generating Loop: {full_prompt}, duration: {duration_sec}s")
+                
+                raw_results = musicgen.generate(
+                    prompt=full_prompt, 
+                    duration_seconds=duration_sec, 
+                    variations=req.variations,
+                    guidance_scale=req.guidance,
+                    temperature=req.temperature,
+                    top_k=req.top_k,
+                    seed=req.seed
+                )
 
-            for i, (audio, sr) in enumerate(raw_results):
-                # 1. cut to exact bar length
-                audio = exact_loop_cut(audio, sr, bpm, int(bars))
-                # 2. normalize
-                audio = normalize_audio(audio)
-                # 3. tiny fade to avoid clicks
-                audio = fade_audio(audio, sr, 2.0)
+            for _, (audio, sr) in enumerate(raw_results):
+                # 1. normalize (softer -10dB to allow dynamic range)
+                audio = normalize_audio(audio, target_db=-10.0)
+                # 2. tiny fade to avoid clicks
+                audio = fade_audio(audio, sr, fade_out_ms=2.0)
                 
                 filename = get_next_filename(LOOPS_DIR, f"loop_{int(bpm)}bpm_{req.key or 'Key'}")
                 path = LOOPS_DIR / filename
@@ -124,10 +135,9 @@ async def generate(req: GenerateRequest):
             )
 
             for _, (audio, sr) in enumerate(raw_results):
-                # cleanup silence and fade nicely
-                audio = trim_silence(audio)
-                audio = normalize_audio(audio)
-                audio = fade_audio(audio, sr, 5.0)
+                # Normalize (lower volume) and slight fade out to prevent clicks
+                audio = normalize_audio(audio, target_db=-10.0)
+                audio = fade_audio(audio, sr, fade_out_ms=300.0)
 
                 filename = get_next_filename(ONESHOTS_DIR, f"oneshot_{req.key or 'Key'}")
                 path = ONESHOTS_DIR / filename

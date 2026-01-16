@@ -6,7 +6,6 @@
 use std::process::{Command, Child};
 use std::sync::{Arc, Mutex};
 use tauri::Manager;
-use tauri_plugin_shell::ShellExt;
 use tauri_plugin_shell::process::CommandChild;
 use std::path::PathBuf;
 

@@ -169,7 +169,7 @@ function App() {
           <div className="advanced-options" style={{ marginTop: '20px', padding: '15px', background: 'rgba(255,255,255,0.05)', borderRadius: '8px' }}>
             <h3 style={{ marginTop: 0, marginBottom: '15px', fontSize: '1.1em' }}>Advanced Control (One-Shot)</h3>
             
-            {/* Stable Audio Open doesn't support negative prompt in basic pipeline */}
+            {/* Stable Audio Open doesn't support negative prompt in basic pipeline :( */}
             {/* <div className="form-group">
               <label>Negative Prompt</label>
               <input 

@@ -18,10 +18,18 @@ class StableAudioOpenModel:
 
         try:
             print("Loading Stable Audio Open...")
-            self.pipe = StableAudioPipeline.from_pretrained(
-                "stabilityai/stable-audio-open-1.0",
-                torch_dtype=torch.float16 if self.device == "cuda" else torch.float32
-            )
+            try:
+                self.pipe = StableAudioPipeline.from_pretrained(
+                    "stabilityai/stable-audio-open-1.0",
+                    torch_dtype=torch.float16 if self.device == "cuda" else torch.float32,
+                    local_files_only=True
+                )
+            except OSError:
+                print("Model not found locally, downloading...")
+                self.pipe = StableAudioPipeline.from_pretrained(
+                    "stabilityai/stable-audio-open-1.0",
+                    torch_dtype=torch.float16 if self.device == "cuda" else torch.float32
+                )
             self.pipe = self.pipe.to(self.device)
 
             if self.device == "cuda":
@@ -76,6 +84,7 @@ class StableAudioOpenModel:
             audios = output.audios
             results = []
             for audio in audios:
+                audio = audio.cpu().float().numpy()
                 # Transpose if (channels, time) -> (time, channels)
                 if audio.ndim == 2 and audio.shape[0] < audio.shape[1]:
                      audio = audio.T
@@ -87,24 +96,3 @@ class StableAudioOpenModel:
         except Exception as e:
             print(f"Error generating: {e}")
             raise
-
-    def unload(self):
-        if self.pipe is not None:
-            del self.pipe
-            self.pipe = None
-            self.is_loaded = False
-
-            if self.device == "cuda":
-                torch.cuda.empty_cache()
-
-            print("Stable Audio unloaded.")
-
-    def get_info(self) -> dict:
-        return {
-            "model_name": "Stable Audio Open",
-            "model_id": "stabilityai/stable-audio-open-1.0",
-            "device": self.device,
-            "is_loaded": self.is_loaded,
-            "sample_rate": self.sample_rate,
-            "dtype": "float16" if self.device == "cuda" else "float32",
-        }

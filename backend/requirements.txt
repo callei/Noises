@@ -2,6 +2,7 @@ fastapi
 uvicorn
 torch>=2.0.0
 torchaudio>=2.0.0
+torchsde
 transformers>=4.31.0
 scipy
 librosa
@@ -10,3 +11,4 @@ numpy
 python-multipart
 diffusers
 accelerate
+# git+https://github.com/ace-step/ACE-Step.git
