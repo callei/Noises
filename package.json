@@ -8,6 +8,14 @@
     "build": "tauri build"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2.0.0"
+    "@tauri-apps/cli": "^2.0.0",
+    "autoprefixer": "^10.4.23",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^4.1.18"
+  },
+  "dependencies": {
+    "@tauri-apps/plugin-fs": "^2.4.5",
+    "framer-motion": "^12.26.2",
+    "lucide-react": "^0.562.0"
   }
 }

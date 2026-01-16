@@ -1,123 +1,37 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 :root {
-  --bg-color: #1a1a1a;
-  --panel-color: #2a2a2a;
+  --bg-color: #0d0d0d;
+  --panel-color: #1a1a1a;
   --text-color: #e0e0e0;
-  --accent-color: #646cff;
-  --accent-hover: #535bf2;
-  --input-bg: #333;
-  --border-color: #444;
+  --accent-color: #7c3aed;
+  --muted: #a1a1aa;
 }
 
 body {
-  margin: 0;
-  display: flex;
-  place-items: center;
-  min-width: 320px;
+  @apply bg-[#0d0d0d] text-gray-200 font-sans antialiased;
   min-height: 100vh;
-  background-color: var(--bg-color);
-  color: var(--text-color);
-  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  overflow: hidden; /* Hide body scrollbar, let main handle it */
 }
 
-#root {
-  width: 100%;
-  max-width: 800px;
-  margin: 0 auto;
-  padding: 2rem;
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  background-color: transparent;
 }
 
-.container {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-  background: var(--panel-color);
-  padding: 2rem;
-  border-radius: 8px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+::-webkit-scrollbar-track {
+  background-color: transparent;
 }
 
-h1 {
-  text-align: center;
-  margin-top: 0;
+::-webkit-scrollbar-thumb {
+  background-color: #333;
+  border-radius: 9999px;
+  border: 2px solid #0d0d0d; /* Creates passing through effect */
 }
 
-.form-group {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-label {
-  font-size: 0.9rem;
-  font-weight: 500;
-  color: #aaa;
-}
-
-input, select {
-  background-color: var(--input-bg);
-  border: 1px solid var(--border-color);
-  color: var(--text-color);
-  padding: 0.6rem;
-  border-radius: 4px;
-  font-size: 1rem;
-}
-
-input:focus, select:focus {
-  outline: 2px solid var(--accent-color);
-  border-color: transparent;
-}
-
-button {
-  background-color: var(--accent-color);
-  color: white;
-  border: none;
-  padding: 0.8rem;
-  border-radius: 4px;
-  font-size: 1rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background-color 0.2s;
-  margin-top: 1rem;
-}
-
-button:hover {
-  background-color: var(--accent-hover);
-}
-
-button:disabled {
-  background-color: #444;
-  cursor: not-allowed;
-  opacity: 0.7;
-}
-
-.status {
-  margin-top: 1rem;
-  padding: 1rem;
-  border-radius: 4px;
-  background: #222;
-  border-left: 4px solid #666;
-}
-
-.status.success {
-  border-color: #4caf50;
-  color: #4caf50;
-}
-
-.status.generating {
-  border-color: #ff9800;
-  color: #ff9800;
-}
-
-.status.error {
-  border-color: #f44336;
-  color: #f44336;
-}
-
-.row {
-  display: flex;
-  gap: 1rem;
-}
-
-.row > * {
-  flex: 1;
+::-webkit-scrollbar-thumb:hover {
+  background-color: #555;
 }
