@@ -80,3 +80,9 @@ Desktop.ini
 
 # --- Environment Variables (Secrets) ---
 .env
+
+# --- Build stuff ---
+BUILD.md
+build.ps1
+src-tauri/binaries/
+src-tauri/resources/

@@ -10,14 +10,28 @@
     "core:window:allow-close",
     "core:window:allow-start-dragging",
     "core:window:allow-toggle-maximize",
+    "core:window:allow-unmaximize",
+    "core:window:allow-is-maximized",
     "shell:allow-open",
     {
       "identifier": "fs:allow-read",
       "allow": [
         { "path": "$HOME/**" },
+        { "path": "$APPDATA/**" },
+        { "path": "$RESOURCE/**" },
         { "path": "**" }
       ]
     },
-    "fs:allow-exists"
+    "fs:allow-read-file",
+    {
+      "identifier": "fs:allow-write",
+      "allow": [
+        { "path": "$HOME/**" },
+        { "path": "$APPDATA/**" },
+        { "path": "**" }
+      ]
+    },
+    "fs:allow-exists",
+    "drag:default"
   ]
 }

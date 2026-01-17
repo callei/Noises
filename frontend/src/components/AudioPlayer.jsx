@@ -3,6 +3,10 @@ import { Play, Pause, Download, Volume2, RefreshCw, VolumeX, FolderOpen, GripVer
 import { Button } from './Button';
 import { readFile } from '@tauri-apps/plugin-fs';
 import { open } from '@tauri-apps/plugin-shell';
+import { startDrag } from '@crabnebula/tauri-plugin-drag';
+// Import a transparent 1x1 pixel base64 image or similar if needed, 
+// but try passing undefined first, or a known path.
+// The error says "missing required key image".
 
 export function AudioPlayer({ filePath, fileName, onRegenerate }) {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -15,17 +19,23 @@ export function AudioPlayer({ filePath, fileName, onRegenerate }) {
   useEffect(() => {
     async function loadAudio() {
         if (!filePath) return;
+        setSrc(null); // Reset
         try {
-            // Read file as binary
-            const content = await readFile(filePath);
-            const blob = new Blob([content], { type: 'audio/wav' }); // Assuming WAV from backend
+            console.log("Reading file:", filePath);
+            // Read file as binary (Uint8Array)
+            const content = await readFile(filePath, {
+                // Ensure we are using the baseDir if needed, but absolute path is preferred usually
+            });
+            // Create Blob and URL
+            const blob = new Blob([content], { type: 'audio/wav' }); 
             const url = URL.createObjectURL(blob);
             setSrc(url);
+            console.log("Audio loaded successfully into Blob URL");
             
             // Cleanup previous URL
             return () => URL.revokeObjectURL(url);
         } catch (err) {
-            console.error("Failed to load audio file:", err);
+            console.error("Failed to load audio file via readFile:", err);
         }
     }
     loadAudio();
@@ -87,17 +97,20 @@ export function AudioPlayer({ filePath, fileName, onRegenerate }) {
       }
   };
 
-  const handleDragStart = (e) => {
-      e.preventDefault();
-      // Improved Drag for Windows/DAWs
-      // text/uri-list is widely supported
-      const fileUrl = `file:///${filePath.replace(/\\/g, '/')}`;
+  const handleDragStart = async (e) => {
+      console.log("Drag started for:", filePath);
       
-      e.dataTransfer.effectAllowed = 'copy';
-      e.dataTransfer.setData('text/plain', filePath);
-      e.dataTransfer.setData('text/uri-list', fileUrl);
-      // 'DownloadURL' is Chrome-specific but good backup
-      e.dataTransfer.setData('DownloadURL', `audio/wav:${fileName}:${fileUrl}`);
+      try {
+          // Use a transparent 1x1 pixel image as the drag icon to avoid path issues
+          const emptyIcon = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
+          
+          await startDrag({
+              item: [filePath],
+              icon: emptyIcon 
+          });
+      } catch (err) {
+          console.error("Drag failed:", err);
+      }
   };
 
   return (
@@ -116,8 +129,7 @@ export function AudioPlayer({ filePath, fileName, onRegenerate }) {
         <div className="flex items-center justify-between mb-4">
             <div 
                 className="flex items-center gap-3 overflow-hidden cursor-grab active:cursor-grabbing group"
-                draggable="true"
-                onDragStart={handleDragStart}
+                onMouseDown={handleDragStart}
                 title="Drag to desktop/DAW"
             >
                 <div className="h-10 w-10 flex items-center justify-center rounded-full bg-primary/20 text-primary group-hover:bg-primary/30 transition-colors">

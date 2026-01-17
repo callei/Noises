@@ -110,7 +110,8 @@ async def generate(req: GenerateRequest):
                 # 2. tiny fade to avoid clicks
                 audio = fade_audio(audio, sr, fade_out_ms=2.0)
                 
-                filename = get_next_filename(LOOPS_DIR, f"loop_{int(bpm)}bpm_{req.key or 'Key'}")
+                safe_key = (req.key or 'Key').replace(" ", "_")
+                filename = get_next_filename(LOOPS_DIR, f"loop_{int(bpm)}bpm_{safe_key}")
                 path = LOOPS_DIR / filename
                 rel_path = save_wav(audio, sr, path)
                 generated_files.append({"file": filename, "path": str(path)})
@@ -139,7 +140,8 @@ async def generate(req: GenerateRequest):
                 audio = normalize_audio(audio, target_db=-10.0)
                 audio = fade_audio(audio, sr, fade_out_ms=300.0)
 
-                filename = get_next_filename(ONESHOTS_DIR, f"oneshot_{req.key or 'Key'}")
+                safe_key = (req.key or 'Key').replace(" ", "_")
+                filename = get_next_filename(ONESHOTS_DIR, f"oneshot_{safe_key}")
                 path = ONESHOTS_DIR / filename
                 rel_path = save_wav(audio, sr, path)
                 generated_files.append({"file": filename, "path": str(path)})
