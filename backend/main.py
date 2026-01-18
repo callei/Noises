@@ -11,13 +11,13 @@ from audio.postprocess import normalize_audio, fade_audio
 from audio.utils import save_wav, get_next_filename
 from config import LOOPS_DIR, ONESHOTS_DIR
 
-# Global model instances
+# Our heavy lifting AI models live here
 musicgen = MusicGenModel()
 stable_audio = StableAudioOpenModel()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # load everything to GPU at startup
+    # Fire up the engines! Load models to GPU immediately.
     try:
         musicgen.load()
         stable_audio.load()
@@ -25,7 +25,7 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"Error loading models: {e}")
     yield
-    # clear vram
+    # Clean up after ourselves so your PC doesn't explode.
     if musicgen.pipe:
         del musicgen.pipe
     if stable_audio.pipe:
@@ -67,7 +67,7 @@ class GenerateRequest(BaseModel):
 @app.post("/generate")
 async def generate(req: GenerateRequest):
     try:
-        req_type = req.type.lower().replace("-", "") # normalize "one-shot" -> "oneshot" hehe
+        req_type = req.type.lower().replace("-", "") # normalize "one-shot" -> "oneshot" (because I always forget the dash)
         generated_files = []
 
         if "loop" in req_type:
@@ -84,7 +84,7 @@ async def generate(req: GenerateRequest):
                 
                 bpm = req.bpm if req.bpm else 120
                 
-                # assume bars if length is small (e.g. < 32)
+                # If the length is tiny, we probably mean bars, not seconds.
                 bars = req.length if req.length else 2
                 duration_sec = (60 / bpm) * (bars * 4)
                 
@@ -105,9 +105,9 @@ async def generate(req: GenerateRequest):
                 )
 
             for _, (audio, sr) in enumerate(raw_results):
-                # 1. normalize (softer -10dB to allow dynamic range)
+                # 1. Normalize (keep it chill at -10dB for dynamics)
                 audio = normalize_audio(audio, target_db=-10.0)
-                # 2. tiny fade to avoid clicks
+                # 2. Tiny little fade to stop those annoying clicks at the loop point
                 audio = fade_audio(audio, sr, fade_out_ms=2.0)
                 
                 safe_key = (req.key or 'Key').replace(" ", "_")
@@ -136,7 +136,7 @@ async def generate(req: GenerateRequest):
             )
 
             for _, (audio, sr) in enumerate(raw_results):
-                # Normalize (lower volume) and slight fade out to prevent clicks
+                # Normalize (keep it chill at -10dB) and slight fade out to prevent clicks
                 audio = normalize_audio(audio, target_db=-10.0)
                 audio = fade_audio(audio, sr, fade_out_ms=300.0)
 

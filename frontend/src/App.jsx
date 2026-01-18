@@ -27,7 +27,7 @@ function App() {
   const [error, setError] = useState(null);
   const [backendReady, setBackendReady] = useState(false);
 
-  // Load presets on mount
+  // Check if we have any saved cool stuff.
   useEffect(() => {
     const saved = localStorage.getItem('user_presets');
     if (saved) {
@@ -39,7 +39,7 @@ function App() {
     }
   }, []);
 
-  // Save presets when changed
+  // Save presets when changed (don't lose the cool stuff!)
   useEffect(() => {
       localStorage.setItem('user_presets', JSON.stringify(presets));
   }, [presets]);
@@ -146,7 +146,7 @@ function App() {
   };
 
   const handleEnhanceContext = (option) => {
-    // Adds specific quality modifiers based on selection
+    // Adds specific quality modifiers based on selection (Magic Sauce)
     setConfig(prev => {
         let newPrompt = prev.prompt;
         if (!newPrompt.includes(option.prompt)) {
@@ -166,7 +166,7 @@ function App() {
     <div className="flex flex-col h-screen bg-background text-gray-200 overflow-hidden font-sans relative">
         <TitleBar />
       
-        {/* Background gradient */}
+        {/* Fancy glowing background blobs. */}
         <div className="absolute top-[-20%] left-[20%] w-[600px] h-[600px] bg-purple-900/10 rounded-full blur-[120px] pointer-events-none" />
         <div className="absolute bottom-[-10%] right-[10%] w-[500px] h-[500px] bg-primary/5 rounded-full blur-[100px] pointer-events-none" />
 

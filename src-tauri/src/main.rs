@@ -50,7 +50,7 @@ fn main() {
         .setup(move |app| {
             #[cfg(debug_assertions)]
             {
-                // DEV MODE: Run Python script directly
+                // DEV MODE: Running raw Python files because compiling takes too long.
                 let resource_path = app.path().resource_dir().unwrap_or(std::path::PathBuf::from("."));
                 let mut script_path = std::path::PathBuf::from("../backend/main.py");
                 if !script_path.exists() {
@@ -77,7 +77,7 @@ fn main() {
 
             #[cfg(not(debug_assertions))]
             {
-                // PROD MODE: Run Sidecar Binary
+                // PROD MODE: Running the frozen executable (the "Sidecar").
                 println!("Starting backend (PROD - Sidecar)...");
                 let sidecar = app.shell().sidecar("backend");
                 
@@ -102,7 +102,7 @@ fn main() {
             tauri::RunEvent::Exit => {
                 let mut proc = backend_process.lock().unwrap();
                 
-                // Kill Dev Process
+                // Kill the backend so it doesn't haunt the system processes.
                 if let Some(mut child) = proc.dev_child.take() {
                    println!("Killing backend process (DEV)");
                    let _ = child.kill();
