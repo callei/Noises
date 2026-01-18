@@ -7,9 +7,6 @@ A local AI music generator that lives on your desktop. No subscriptions, no clou
    <img src="screenshots/2.png" width="49%" /> 
 </p>
 
-
-*(Drop a screenshot of your app here!)*
-
 ## What is this?
 
 **Noises** is a desktop app I built to make generating AI samples and loops easier. It uses **Tauri** for a lightweight UI and **Python** to run the heavy AI models locally.
