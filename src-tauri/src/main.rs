@@ -5,9 +5,8 @@
 
 use std::process::{Command, Child};
 use std::sync::{Arc, Mutex};
-use tauri::Manager;
 use tauri_plugin_shell::process::CommandChild;
-use std::path::PathBuf;
+use tauri_plugin_shell::ShellExt;
 
 struct BackendProcess {
     dev_child: Option<Child>,
@@ -52,8 +51,8 @@ fn main() {
             #[cfg(debug_assertions)]
             {
                 // DEV MODE: Run Python script directly
-                let resource_path = app.path().resource_dir().unwrap_or(PathBuf::from("."));
-                let mut script_path = PathBuf::from("../backend/main.py");
+                let resource_path = app.path().resource_dir().unwrap_or(std::path::PathBuf::from("."));
+                let mut script_path = std::path::PathBuf::from("../backend/main.py");
                 if !script_path.exists() {
                      script_path = resource_path.join("backend/main.py");
                 }

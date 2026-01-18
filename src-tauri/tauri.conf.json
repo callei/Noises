@@ -42,8 +42,15 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "licenseFile": "../LICENSE",
+    "copyright": "2026 Carl J",
     "resources": [
       "resources/*"
-    ]
+    ],
+    "windows": {
+      "nsis": {
+        "installMode": "perMachine"
+      }
+    }
   }
 }

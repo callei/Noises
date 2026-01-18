@@ -93,7 +93,16 @@ function App() {
         body: JSON.stringify(payload),
       });
 
-      if (!response.ok) throw new Error('Generation failed');
+      if (!response.ok) {
+        let errorMsg = 'Generation failed';
+        try {
+          const errData = await response.json();
+          if (errData.detail) errorMsg = errData.detail;
+        } catch (_) {
+          // keep default message
+        }
+        throw new Error(errorMsg);
+      }
       const data = await response.json();
       
       setResult({
