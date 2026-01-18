@@ -12,7 +12,15 @@
     "core:window:allow-toggle-maximize",
     "core:window:allow-unmaximize",
     "core:window:allow-is-maximized",
-    "shell:allow-open",
+    {
+      "identifier": "shell:allow-open",
+      "allow": [
+        {
+          "name": "all-files",
+          "cmd": "^.*$"
+        }
+      ]
+    },
     {
       "identifier": "fs:allow-read",
       "allow": [
@@ -22,7 +30,13 @@
         { "path": "**" }
       ]
     },
-    "fs:allow-read-file",
+    {
+      "identifier": "fs:allow-read-file",
+      "allow": [
+        { "path": "$HOME/**" },
+        { "path": "**" }
+      ]
+    },
     {
       "identifier": "fs:allow-write",
       "allow": [

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Play, Pause, Download, Volume2, RefreshCw, VolumeX, FolderOpen, GripVertical } from 'lucide-react';
 import { Button } from './Button';
 import { readFile } from '@tauri-apps/plugin-fs';
-import { open } from '@tauri-apps/plugin-shell';
+import { invoke } from '@tauri-apps/api/core';
 import { startDrag } from '@crabnebula/tauri-plugin-drag';
 // Import a transparent 1x1 pixel base64 image or similar if needed, 
 // but try passing undefined first, or a known path.
@@ -80,20 +80,11 @@ export function AudioPlayer({ filePath, fileName, onRegenerate }) {
 
   const handleOpenFolder = async () => {
       try {
-          // Robust directory extraction
-          const cleanPath = filePath.replace(/\\/g, '/');
-          const lastSlash = cleanPath.lastIndexOf('/');
-          const parentDir = lastSlash !== -1 ? cleanPath.substring(0, lastSlash) : cleanPath;
-          
-          await open(parentDir); 
-      } catch (e) {
-          // Fallback: try opening the file itself (OS decides app)
-          console.error("Failed to open folder, trying file...", e);
-          try {
-              await open(filePath);
-          } catch (e2) {
-             console.error("Failed to open file", e2);
-          }
+          // Send the full path of the file to the Rust backend
+          // Rust will take care of opening the folder and selecting the file
+          await invoke('show_in_folder', { path: filePath });
+      } catch (err) {
+          console.error("Failed to open folder:", err);
       }
   };
 

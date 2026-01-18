@@ -14,6 +14,31 @@ struct BackendProcess {
     prod_child: Option<CommandChild>,
 }
 
+#[tauri::command]
+fn show_in_folder(path: String) {
+  #[cfg(target_os = "windows")]
+  {
+    Command::new("explorer")
+      .args(["/select,", &path]) // The comma after select is important
+      .spawn()
+      .unwrap();
+  }
+  #[cfg(target_os = "macos")]
+  {
+    Command::new("open")
+      .args(["-R", &path])
+      .spawn()
+      .unwrap();
+  }
+  #[cfg(target_os = "linux")]
+  {
+    Command::new("xdg-open")
+      .arg(&path)
+      .spawn()
+      .unwrap();
+  }
+}
+
 fn main() {
     let backend_process = Arc::new(Mutex::new(BackendProcess { dev_child: None, prod_child: None }));
     let bg_process = backend_process.clone();
@@ -22,6 +47,7 @@ fn main() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_drag::init())
+        .invoke_handler(tauri::generate_handler![show_in_folder])
         .setup(move |app| {
             #[cfg(debug_assertions)]
             {
