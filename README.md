@@ -47,7 +47,10 @@ If you want to hack on it yourself:
 *   Node.js 18+
 *   Python 3.10+
 *   Rust
-*   NVIDIA GPU (Recommended)
+*   **System Requirements:**
+    *   **GPU:** NVIDIA GeForce RTX 3060 (8GB VRAM) or better recommended.
+    *   **Minimum:** NVIDIA GPU with 6GB VRAM (Stable Audio may struggle).
+    *   **Hard Drive:** ~5GB free space for models.
 
 ### Setup
 ```bash
