@@ -30,6 +30,14 @@ It currently supports:
 
 *Note: The first time you generate audio, it will download necessary models (~4GB) from HuggingFace. This connects to the internet once, then never again. If this does not work for you, please reach out so I can fix the issues!*
 
+## Task Manager & Processes
+
+When running **Noises**, you will see a few different processes in your Task Manager. This is normal!
+
+*   **Noises.exe:** The main application window and lightweight controller.
+*   **backend.exe:** The heavy lifter! This is the Python engine running the AI models. It runs separately to keep the UI smooth.
+*   **WebView2 / msedgewebview2.exe:** These processes handle the rendering of the user interface (similar to Chrome/Edge tabs).
+
 ## Tech Stack (For the nerds)
 
 *   **Frontend:** React, Tailwind CSS, Framer Motion
