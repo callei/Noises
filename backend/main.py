@@ -160,4 +160,22 @@ async def generate(req: GenerateRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
+    # Robust Parent Death Detection
+    # If the parent process (Tauri) dies, it closes stdin. 
+    # We exit when that happens to prevent orphaned backend processes.
+    import sys
+    import threading
+    
+    def watch_stdin():
+        if sys.stdin:
+            sys.stdin.read()
+        # If read returns, it means stdin was closed (parent died)
+        print("Parent process exited. Shutting down backend.")
+        import os
+        os._exit(0) # Force exit
+
+    # Start watcher in background
+    watcher = threading.Thread(target=watch_stdin, daemon=True)
+    watcher.start()
+
     uvicorn.run(app, host="127.0.0.1", port=8000)

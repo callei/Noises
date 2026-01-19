@@ -14,7 +14,27 @@ export function AudioPlayer({ filePath, fileName, onRegenerate }) {
   const [volume, setVolume] = useState(0.8);
   const [isMuted, setIsMuted] = useState(false);
   const audioRef = useRef(null);
+  const requestRef = useRef();
   const [src, setSrc] = useState(null);
+
+  useEffect(() => {
+    // Linear animation loop for smooth progress bar
+    const animate = () => {
+      if (audioRef.current && !audioRef.current.paused) {
+        const p = (audioRef.current.currentTime / audioRef.current.duration) * 100;
+        setProgress(p);
+        requestRef.current = requestAnimationFrame(animate);
+      }
+    };
+    
+    if (isPlaying) {
+      requestRef.current = requestAnimationFrame(animate);
+    } else {
+      cancelAnimationFrame(requestRef.current);
+    }
+
+    return () => cancelAnimationFrame(requestRef.current);
+  }, [isPlaying]);
 
   useEffect(() => {
     async function loadAudio() {
@@ -57,13 +77,6 @@ export function AudioPlayer({ filePath, fileName, onRegenerate }) {
     setIsPlaying(!isPlaying);
   };
 
-  const handleTimeUpdate = () => {
-    if (audioRef.current) {
-      const p = (audioRef.current.currentTime / audioRef.current.duration) * 100;
-      setProgress(p);
-    }
-  };
-
   const handleEnded = () => {
     setIsPlaying(false);
     setProgress(0);
@@ -72,9 +85,12 @@ export function AudioPlayer({ filePath, fileName, onRegenerate }) {
   const handleSeek = (e) => {
       const rect = e.currentTarget.getBoundingClientRect();
       const x = e.clientX - rect.left;
-      const percentage = x / rect.width;
+      const percentage = Math.max(0, Math.min(1, x / rect.width)); // Clamp between 0 and 1
+      
       if (audioRef.current) {
-          audioRef.current.currentTime = percentage * audioRef.current.duration;
+          const newTime = percentage * audioRef.current.duration;
+          audioRef.current.currentTime = newTime;
+          setProgress(percentage * 100); // Immediate visual update
       }
   };
 
@@ -109,7 +125,7 @@ export function AudioPlayer({ filePath, fileName, onRegenerate }) {
         <audio
             ref={audioRef}
             src={src}
-            onTimeUpdate={handleTimeUpdate}
+            // onTimeUpdate removed to prevent stutter, using requestAnimationFrame instead
             onEnded={handleEnded}
             onPlay={() => setIsPlaying(true)}
             onPause={() => setIsPlaying(false)}
@@ -151,10 +167,14 @@ export function AudioPlayer({ filePath, fileName, onRegenerate }) {
             </Button>
             
             {/* Seek Bar */}
-            <div className="flex-1 h-8 flex items-center group cursor-pointer" onClick={handleSeek}>
+            <div 
+                className="flex-1 h-8 flex items-center group cursor-pointer" 
+                onClick={handleSeek}
+                onMouseMove={(e) => e.buttons === 1 && handleSeek(e)} // Allow dragging
+            >
                 <div className="h-1.5 w-full bg-gray-700/50 rounded-full overflow-hidden relative">
                     <div 
-                        className="h-full bg-primary transition-all duration-100 linear group-hover:bg-primary-hover"
+                        className="h-full bg-primary transition-[width] duration-75 ease-linear group-hover:bg-primary-hover"
                         style={{ width: `${progress}%` }}
                     />
                 </div>
