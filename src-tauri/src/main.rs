@@ -7,6 +7,10 @@ use std::process::{Command, Child};
 use std::sync::{Arc, Mutex};
 use tauri_plugin_shell::process::CommandChild;
 use tauri_plugin_shell::ShellExt;
+use tauri::Manager;
+
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
 
 struct BackendProcess {
     dev_child: Option<Child>,
@@ -104,15 +108,34 @@ fn main() {
                 
                 // Kill the backend so it doesn't haunt the system processes.
                 if let Some(mut child) = proc.dev_child.take() {
-                   println!("Killing backend process (DEV)");
-                   let _ = child.kill();
+                    println!("Killing backend process (DEV)");
+                    let pid = child.id();
+                    // First try graceful kill
+                    let _ = child.kill();
+                    // Then nuke the entire process tree on Windows
+                    #[cfg(target_os = "windows")]
+                    {
+                        let _ = Command::new("taskkill")
+                            .args(["/F", "/T", "/PID", &pid.to_string()])
+                            .creation_flags(0x08000000) // CREATE_NO_WINDOW
+                            .spawn();
+                    }
                 }
 
-                // Kill Prod Process
+                // Kill Prod Process (Sidecar)
                 if let Some(child) = proc.prod_child.take() {
                     println!("Killing backend process (PROD)");
-                    // CommandChild in Tauri v2 needs to be killed properly
-                    let _ = child.kill(); 
+                    let pid = child.pid();
+                    // First try the Tauri kill method
+                    let _ = child.kill();
+                    // Then nuke the entire process tree on Windows
+                    #[cfg(target_os = "windows")]
+                    {
+                        let _ = Command::new("taskkill")
+                            .args(["/F", "/T", "/PID", &pid.to_string()])
+                            .creation_flags(0x08000000) // CREATE_NO_WINDOW
+                            .spawn();
+                    }
                 }
             }
             _ => {}

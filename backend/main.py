@@ -160,22 +160,62 @@ async def generate(req: GenerateRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
-    # Robust Parent Death Detection
-    # If the parent process (Tauri) dies, it closes stdin. 
-    # We exit when that happens to prevent orphaned backend processes.
-    import sys
-    import threading
-    
-    def watch_stdin():
-        if sys.stdin:
-            sys.stdin.read()
-        # If read returns, it means stdin was closed (parent died)
-        print("Parent process exited. Shutting down backend.")
-        import os
-        os._exit(0) # Force exit
+    import multiprocessing
+    multiprocessing.freeze_support()
 
-    # Start watcher in background
+    import sys
+    import os
+    import signal
+    import atexit
+    import threading
+
+    def force_shutdown():
+        """Nuclear option: Kill entire process tree on Windows."""
+        print("Force shutdown initiated...")
+        try:
+            import subprocess
+            pid = os.getpid()
+            # taskkill /T kills the process tree (all children)
+            subprocess.run(
+                ["taskkill", "/F", "/T", "/PID", str(pid)],
+                capture_output=True,
+                creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+            )
+        except Exception as e:
+            print(f"Force shutdown error: {e}")
+        finally:
+            os._exit(0)
+
+    def signal_handler(signum, frame):
+        """Handle termination signals gracefully."""
+        print(f"Received signal {signum}. Shutting down...")
+        force_shutdown()
+
+    # Register signal handlers (Windows supports SIGTERM, SIGINT, SIGBREAK)
+    signal.signal(signal.SIGTERM, signal_handler)
+    signal.signal(signal.SIGINT, signal_handler)
+    if sys.platform == "win32":
+        signal.signal(signal.SIGBREAK, signal_handler)
+
+    # Robust Parent Death Detection via stdin monitoring
+    def watch_stdin():
+        """Watch for parent death by monitoring stdin closure."""
+        try:
+            if sys.stdin:
+                while True:
+                    line = sys.stdin.readline()
+                    if not line:  # EOF means parent closed the pipe
+                        break
+        except Exception:
+            pass
+        print("Parent process closed stdin. Shutting down backend.")
+        force_shutdown()
+
+    # Start stdin watcher in background
     watcher = threading.Thread(target=watch_stdin, daemon=True)
     watcher.start()
+
+    # Register cleanup on normal exit too
+    atexit.register(lambda: print("Backend exiting normally."))
 
     uvicorn.run(app, host="127.0.0.1", port=8000)
