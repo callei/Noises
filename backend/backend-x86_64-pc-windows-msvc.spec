@@ -1,7 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 from PyInstaller.utils.hooks import collect_all
 
-datas = []
+datas = [('noises_cleanup_marker.txt', '.')]
 binaries = []
 hiddenimports = ['torch', 'transformers', 'diffusers', 'uvicorn', 'fastapi', 'torchsde', 'psutil']
 tmp_ret = collect_all('transformers')

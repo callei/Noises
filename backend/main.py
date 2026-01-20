@@ -9,9 +9,41 @@ import tempfile
 import atexit
 import threading
 import argparse
-import signal
 import psutil
+import shutil
+import sys
 from contextlib import asynccontextmanager
+
+def _clean_old_mei_dirs():
+    """
+    Cleanup old/orphaned _MEI temp directories from previous runs.
+    We identify them by the 'noises_cleanup_marker.txt' file.
+    """
+    try:
+        if not hasattr(sys, '_MEIPASS'):
+            return 
+
+        current_mei = getattr(sys, '_MEIPASS')
+        temp_dir = os.path.dirname(current_mei)
+        
+        for name in os.listdir(temp_dir):
+            if not name.startswith('_MEI'):
+                continue
+            
+            full_path = os.path.join(temp_dir, name)
+            if full_path == current_mei:
+                continue
+
+            marker = os.path.join(full_path, 'noises_cleanup_marker.txt')
+            if os.path.exists(marker):
+                try:
+                    shutil.rmtree(full_path)
+                    print(f"Cleaned up orphaned runtime: {name}")
+                except Exception:
+                    pass 
+    except Exception as e:
+        print(f"Cleanup warning: {e}")
+
 import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -193,6 +225,7 @@ async def generate(req: GenerateRequest):
 
 if __name__ == "__main__":
     _ensure_single_instance()
+    _clean_old_mei_dirs()
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--parent-pid", type=int, help="PID of the parent process to monitor")
