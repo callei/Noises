@@ -6,11 +6,7 @@ from pathlib import Path
 # We will use the User's Music directory for samples.
 HOME_DIR = Path(os.path.expanduser("~"))
 
-if sys.platform == "win32":
-    MUSIC_DIR = HOME_DIR / "Music" / "Noises"
-else:
-    MUSIC_DIR = HOME_DIR / "Music" / "Noises"
-
+MUSIC_DIR = HOME_DIR / "Music" / "Noises"
 BASE_DIR = MUSIC_DIR
 SAMPLES_DIR = BASE_DIR / "samples"
 LOOPS_DIR = SAMPLES_DIR / "loops"

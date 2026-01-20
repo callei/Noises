@@ -1,41 +1,44 @@
 #![cfg_attr(
-  all(not(debug_assertions), target_os = "windows"),
-  windows_subsystem = "windows"
+    all(not(debug_assertions), target_os = "windows"),
+    windows_subsystem = "windows"
 )]
 
-use std::process::{Command, Child};
+use std::process::{Child, Stdio};
 use std::sync::{Arc, Mutex};
-use tauri_plugin_shell::process::CommandChild;
+use tauri::{Manager, RunEvent};
+use tauri_plugin_shell::process::{CommandChild, CommandEvent};
 use tauri_plugin_shell::ShellExt;
-use tauri::Manager;
 
-#[cfg(target_os = "windows")]
-use std::os::windows::process::CommandExt;
-
-struct BackendProcess {
-    dev_child: Option<Child>,
-    prod_child: Option<CommandChild>,
+// Structure to hold the child process handle.
+// We need to support both std::process::Child (for dev) and CommandChild (for prod/sidecar)
+// this should give us tools to kill the process on exit.
+struct BackendState {
+    dev_process: Option<Child>,
+    prod_process: Option<CommandChild>,
 }
+
+// Wrap in Arc<Mutex> so it can be shared across the app
+type SharedBackendState = Arc<Mutex<BackendState>>;
 
 #[tauri::command]
 fn show_in_folder(path: String) {
   #[cfg(target_os = "windows")]
   {
-    Command::new("explorer")
-      .args(["/select,", &path]) // The comma after select is important
+    std::process::Command::new("explorer")
+      .args(["/select,", &path])
       .spawn()
       .unwrap();
   }
   #[cfg(target_os = "macos")]
   {
-    Command::new("open")
+    std::process::Command::new("open")
       .args(["-R", &path])
       .spawn()
       .unwrap();
   }
   #[cfg(target_os = "linux")]
   {
-    Command::new("xdg-open")
+    std::process::Command::new("xdg-open")
       .arg(&path)
       .spawn()
       .unwrap();
@@ -43,8 +46,12 @@ fn show_in_folder(path: String) {
 }
 
 fn main() {
-    let backend_process = Arc::new(Mutex::new(BackendProcess { dev_child: None, prod_child: None }));
-    let bg_process = backend_process.clone();
+    let backend_state = Arc::new(Mutex::new(BackendState {
+        dev_process: None,
+        prod_process: None,
+    }));
+
+    let state_clone = backend_state.clone();
 
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
@@ -52,50 +59,41 @@ fn main() {
         .plugin(tauri_plugin_drag::init())
         .invoke_handler(tauri::generate_handler![show_in_folder])
         .setup(move |app| {
+            let pid = std::process::id();
+
             #[cfg(debug_assertions)]
             {
-                // DEV MODE: Running raw Python files because compiling takes too long.
-                let resource_path = app.path().resource_dir().unwrap_or(std::path::PathBuf::from("."));
-                let mut script_path = std::path::PathBuf::from("../backend/main.py");
-                if !script_path.exists() {
-                     script_path = resource_path.join("backend/main.py");
-                }
+                let mut cmd = std::process::Command::new("python");
+                cmd.arg("../backend/main.py");
+                cmd.arg("--parent-pid");
+                cmd.arg(pid.to_string());
+                cmd.stdin(Stdio::piped());
                 
-                println!("Starting backend (DEV) from {:?}", script_path.canonicalize());
-
-                let child = Command::new("python")
-                    .arg(script_path)
-                    .spawn();
-
-                match child {
-                    Ok(c) => {
-                        println!("Backend started with PID {}", c.id());
-                        let mut proc = bg_process.lock().unwrap();
-                        proc.dev_child = Some(c);
+                match cmd.spawn() {
+                    Ok(child) => {
+                        println!("[Tauri] Backend (DEV) started with PID: {}", child.id());
+                        let mut state = state_clone.lock().unwrap();
+                        state.dev_process = Some(child);
                     }
-                    Err(e) => {
-                        eprintln!("Failed to start backend: {}", e);
-                    }
+                    Err(e) => eprintln!("[Tauri] Failed to spawn dev backend: {}", e),
                 }
             }
 
             #[cfg(not(debug_assertions))]
             {
-                // PROD MODE: Running the frozen executable (the "Sidecar").
-                println!("Starting backend (PROD - Sidecar)...");
-                let sidecar = app.shell().sidecar("backend");
+                let sidecar_command = app.shell().sidecar("backend").unwrap()
+                    .args(["--parent-pid", &pid.to_string()]);
                 
-                match sidecar {
-                    Ok(cmd) => {
-                        let (mut _rx, child) = cmd.spawn().expect("Failed to spawn sidecar");
-                        println!("Backend sidecar started.");
-                         let mut proc = bg_process.lock().unwrap();
-                        proc.prod_child = Some(child);
+                match sidecar_command.spawn() {
+                    Ok((_rx, child)) => {
+                        println!("[Tauri] Backend (PROD) started with PID: {}", child.pid());
+                        let mut state = state_clone.lock().unwrap();
+                        state.prod_process = Some(child);
+                        
+                        // Optional: listen to backend logs via _rx here if needed
                     }
-                    Err(e) => {
-                         eprintln!("Failed to create sidecar command: {}", e);
-                    }
-                }
+                    Err(e) => eprintln!("[Tauri] Failed to spawn sidecar: {}", e),
+                };
             }
 
             Ok(())
@@ -103,42 +101,23 @@ fn main() {
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(move |_app_handle, event| match event {
-            tauri::RunEvent::Exit => {
-                let mut proc = backend_process.lock().unwrap();
-                
-                // Kill the backend so it doesn't haunt the system processes.
-                if let Some(mut child) = proc.dev_child.take() {
-                    println!("Killing backend process (DEV)");
-                    let pid = child.id();
-                    // First try graceful kill
-                    let _ = child.kill();
-                    // Then nuke the entire process tree on Windows
-                    #[cfg(target_os = "windows")]
-                    {
-                        let _ = Command::new("taskkill")
-                            .args(["/F", "/T", "/PID", &pid.to_string()])
-                            .creation_flags(0x08000000) // CREATE_NO_WINDOW
-                            .spawn();
-                    }
+            // This event fires when the app is completely shutting down
+            RunEvent::Exit => {
+                println!("[Tauri] App exiting, killing backend...");
+                let mut state = backend_state.lock().unwrap();
+
+                // Kill DEV process (std::process::Child)
+                if let Some(mut child) = state.dev_process.take() {
+                    let _ = child.kill(); // Sends SIGKILL / TerminateProcess
+                    println!("[Tauri] Killed dev backend");
                 }
 
-                // Kill Prod Process (Sidecar)
-                if let Some(child) = proc.prod_child.take() {
-                    println!("Killing backend process (PROD)");
-                    let pid = child.pid();
-                    // First try the Tauri kill method
-                    let _ = child.kill();
-                    // Then nuke the entire process tree on Windows
-                    #[cfg(target_os = "windows")]
-                    {
-                        let _ = Command::new("taskkill")
-                            .args(["/F", "/T", "/PID", &pid.to_string()])
-                            .creation_flags(0x08000000) // CREATE_NO_WINDOW
-                            .spawn();
-                    }
+                // Kill PROD process (CommandChild)
+                if let Some(child) = state.prod_process.take() {
+                    let _ = child.kill(); 
+                    println!("[Tauri] Killed prod backend");
                 }
             }
             _ => {}
         });
 }
-

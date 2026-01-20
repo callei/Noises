@@ -22,6 +22,16 @@
       ]
     },
     {
+      "identifier": "shell:allow-execute",
+      "allow": [
+        {
+          "name": "binaries/backend",
+          "cmd": "binaries/backend",
+          "args": true
+        }
+      ]
+    },
+    {
       "identifier": "fs:allow-read",
       "allow": [
         { "path": "$HOME/**" },
