@@ -5,13 +5,13 @@ if __name__ == "__main__":
     multiprocessing.freeze_support()
 
 import os
+import time
 import tempfile
 import atexit
 import threading
 import argparse
 import psutil
 import shutil
-import sys
 from contextlib import asynccontextmanager
 
 def _clean_old_mei_dirs():
@@ -50,7 +50,24 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 import torch
-from models.musicgen import MusicGenModel
+import torchaudio
+import soundfile as sf
+
+# --- Monkey-patch torchaudio.save to use soundfile directly ---
+# torchaudio 2.10+ requires torchcodec for its default save backend.
+# Since we don't need torchcodec, we bypass it by using soundfile (already installed).
+_original_torchaudio_save = torchaudio.save
+def _soundfile_save(filepath, src, sample_rate, **kwargs):
+    """Save audio using soundfile instead of torchaudio's backend."""
+    audio_np = src.cpu().float().numpy()
+    # torchaudio format: (channels, samples) -> soundfile format: (samples, channels)
+    if audio_np.ndim == 2:
+        audio_np = audio_np.T
+    sf.write(str(filepath), audio_np, sample_rate)
+torchaudio.save = _soundfile_save
+# --- End monkey-patch ---
+
+from models.acestep import ACEStepModel
 from models.stable_audio import StableAudioOpenModel
 from audio.postprocess import normalize_audio, fade_audio
 from audio.utils import save_wav, get_next_filename
@@ -97,21 +114,22 @@ def _ensure_single_instance():
         pass
 
 # Initialize Models (Lazy loaded in lifespan)
-musicgen = MusicGenModel()
+acestep = ACEStepModel()
 stable_audio = StableAudioOpenModel()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    try:
-        musicgen.load()
-        stable_audio.load()
-    except Exception as e:
-        print(f"Error loading models: {e}")
+    # Models are lazy-loaded on first generation request.
+    # ACE-Step uses cpu_offload=True so it only puts one sub-model on GPU at a time (~8GB peak).
+    # Stable Audio uses ~3GB VRAM.
+    # With 12GB VRAM (RTX 5070), we load each on demand and rely on cpu_offload for ACE-Step.
+    print("Backend ready. Models will be loaded on first request.")
     yield
     # Cleanup
-    if musicgen.pipe: del musicgen.pipe
+    if acestep.pipe: del acestep.pipe
     if stable_audio.pipe: del stable_audio.pipe
-    torch.cuda.empty_cache()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
 
 app = FastAPI(lifespan=lifespan)
 
@@ -128,7 +146,6 @@ def shutdown():
     print("Received shutdown request")
     
     def kill_server():
-        import time
         time.sleep(1)
         os._exit(0)
     
@@ -142,16 +159,17 @@ def health_check():
 class GenerateRequest(BaseModel):
     type: str
     prompt: str
+    negative_prompt: str | None = None
+    lyrics: str | None = None
     bpm: int | None = None
     key: str | None = None
     length: float | None = None
     variations: int = 1
-    negative_prompt: str | None = None
-    steps: int = 20
-    guidance: float = 3.5
+    steps: int = 200
+    guidance: float = 7.0
     seed: int | None = None
-    temperature: float = 1.0
-    top_k: int = 250
+    scheduler_type: str = "euler"
+    cfg_type: str = "apg"
 
 @app.post("/generate")
 async def generate(req: GenerateRequest):
@@ -160,55 +178,67 @@ async def generate(req: GenerateRequest):
         generated_files = []
 
         if "loop" in req_type:
-            # --- MUSICGEN ---
-            bpm = req.bpm if req.bpm else 120
-            bars = req.length if req.length else 2
-            duration_sec = (60 / bpm) * (bars * 4)
-            full_prompt = f"{req.prompt}, {bpm} bpm"
+            # --- STABLE AUDIO (Better for short loops & samples) ---
+            duration = req.length if req.length else 2.5
+            full_prompt = req.prompt
+            if req.bpm: full_prompt += f", {req.bpm} bpm"
             if req.key: full_prompt += f", {req.key}"
 
-            print(f"Generating Loop: {full_prompt}, {duration_sec}s")
-            raw_results = musicgen.generate(
-                prompt=full_prompt, 
-                duration_seconds=duration_sec, 
-                variations=req.variations,
+            print(f"Generating Loop: {full_prompt}, {duration}s")
+            # Free ACE-Step VRAM before loading Stable Audio
+            if acestep.is_loaded:
+                acestep.unload()
+            raw_results = stable_audio.generate(
+                prompt=full_prompt,
+                negative_prompt=req.negative_prompt or "",
+                duration_seconds=duration,
+                num_inference_steps=req.steps,
                 guidance_scale=req.guidance,
-                temperature=req.temperature,
-                top_k=req.top_k,
-                seed=req.seed
+                seed=req.seed,
             )
             for i, (audio, sr) in enumerate(raw_results):
                 audio = normalize_audio(audio, target_db=-10.0)
-                audio = fade_audio(audio, sr, fade_out_ms=2.0)
+                audio = fade_audio(audio, sr, fade_out_ms=100)
+                bpm_part = f"_{req.bpm}bpm" if req.bpm else ""
                 safe_key = (req.key or 'Key').replace(" ", "_")
-                filename = get_next_filename(LOOPS_DIR, f"loop_{int(bpm)}bpm_{safe_key}")
+                filename = get_next_filename(LOOPS_DIR, f"loop{bpm_part}_{safe_key}")
                 path = LOOPS_DIR / filename
                 save_wav(audio, sr, path)
                 generated_files.append({"file": filename, "path": str(path)})
+            
+            # Unload Stable Audio immediately after generation to free GPU memory
+            stable_audio.unload()
 
         else:
-            # --- STABLE AUDIO ---
-            duration = req.length if req.length else 2.5
+            # --- ACE-STEP (Better for full songs with vocals) ---
+            duration = req.length if req.length else 30.0
             full_prompt = req.prompt
             if req.key: full_prompt += f", {req.key}"
 
-            print(f"Generating One-shot: {full_prompt}")
-            raw_results = stable_audio.generate(
-                prompt=full_prompt, 
-                duration_seconds=duration, 
-                variations=req.variations,
-                num_inference_steps=req.steps, 
+            print(f"Generating Full Song: {full_prompt}, {duration}s")
+            # Free Stable Audio VRAM before loading ACE-Step
+            if stable_audio.is_loaded:
+                stable_audio.unload()
+            raw_results = acestep.generate(
+                prompt=full_prompt,
+                lyrics=req.lyrics or "",
+                duration_seconds=duration,
+                steps=req.steps,
                 guidance_scale=req.guidance,
-                seed=req.seed
+                seed=req.seed,
+                scheduler_type=req.scheduler_type,
+                cfg_type=req.cfg_type,
             )
             for i, (audio, sr) in enumerate(raw_results):
                 audio = normalize_audio(audio, target_db=-10.0)
-                audio = fade_audio(audio, sr, fade_out_ms=300.0)
-                safe_key = (req.key or 'Key').replace(" ", "_")
-                filename = get_next_filename(ONESHOTS_DIR, f"oneshot_{safe_key}")
+                audio = fade_audio(audio, sr, fade_out_ms=2000)
+                filename = get_next_filename(ONESHOTS_DIR, "song")
                 path = ONESHOTS_DIR / filename
                 save_wav(audio, sr, path)
                 generated_files.append({"file": filename, "path": str(path)})
+            
+            # Unload ACE-Step immediately after generation to free GPU memory
+            acestep.unload()
 
         if not generated_files:
             raise HTTPException(500, "Generation failed")
@@ -239,7 +269,6 @@ if __name__ == "__main__":
                 if not parent.is_running():
                     print(f"Parent {pid} is gone. Exiting.")
                     os._exit(0)
-                import time
                 time.sleep(1)
         except Exception:
             print(f"Parent {pid} lost. Exiting.")

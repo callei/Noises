@@ -25,9 +25,11 @@ export function MegaInput({ config, setConfig, onGenerate, generating, backendRe
   const CONTEXT_OPTIONS = [
     { label: "Clean / High Fidelity", prompt: ", clean high quality audio, professionally produced", negative: "noise, distortion, artifacts, low quality" },
     { label: "Lo-Fi / Vintage", prompt: ", vintage vinyl texture, lo-fi aesthetic, warm saturation", negative: "clean, digital, sharp" },
-    { label: "Dark / Cinematic", prompt: ", dark atmosphere, cinematic, roomy reverb", negative: "bright, happy, dry" },
+    { label: "Dark / Cinematic", prompt: ", dark atmosphere, cinematic, roomy reverb", negative: "bright, happy, upbeat" },
     { label: "Distorted / Aggressive", prompt: ", heavy distortion, aggressive compression, saturation", negative: "clean, soft, gentle" },
-    { label: "Instrument Isolation", prompt: ", solo instrument, isolated stem", negative: "drums, full mix, accompaniment" }
+    { label: "Instrument Only", prompt: ", pure instrumental, no vocals", negative: "vocals, singing, voice" },
+    { label: "Ambient / Spacious", prompt: ", ambient, spacious, ethereal, long reverb", negative: "dry, tight, percussive" },
+    { label: "Energetic / Upbeat", prompt: ", energetic, fast tempo, dynamic, uplifting", negative: "slow, calm, mellow" }
   ];
 
   const handleContextClick = (opt) => {
@@ -50,24 +52,24 @@ export function MegaInput({ config, setConfig, onGenerate, generating, backendRe
             <div className="flex items-center justify-between px-4 pt-3 pb-1">
                  <div className="flex gap-1 bg-gray-900/50 p-1 rounded-lg">
                     <button 
-                        onClick={() => setConfig({...config, type: 'loop'})}
+                        onClick={() => setConfig({...config, type: 'loop', length: 4, steps: 200, guidance: 7.0, prompt: ""})}
                         className={cn(
                             "text-xs px-3 py-1.5 rounded-md font-medium transition-all flex items-center gap-2",
                             config.type === 'loop' ? "bg-primary text-white shadow-lg" : "text-gray-400 hover:text-gray-200"
                         )}
                     >
                         <span>Loop</span>
-                        <span className="text-[10px] opacity-60 font-mono hidden sm:inline">(MusicGen)</span>
+                        <span className="text-[10px] opacity-60 font-mono hidden sm:inline">(Stable Audio)</span>
                     </button>
                     <button 
-                         onClick={() => setConfig({...config, type: 'one-shot'})}
+                         onClick={() => setConfig({...config, type: 'one-shot', length: 30, steps: 60, guidance: 15.0, prompt: ""})}
                          className={cn(
                             "text-xs px-3 py-1.5 rounded-md font-medium transition-all flex items-center gap-2",
                             config.type === 'one-shot' ? "bg-primary text-white shadow-lg" : "text-gray-400 hover:text-gray-200"
                         )}
                     >
-                        <span>One-Shot</span>
-                        <span className="text-[10px] opacity-60 font-mono hidden sm:inline">(Stable Audio)</span>
+                        <span>Full Song</span>
+                        <span className="text-[10px] opacity-60 font-mono hidden sm:inline">(ACE-Step)</span>
                     </button>
                  </div>
 
@@ -128,7 +130,7 @@ export function MegaInput({ config, setConfig, onGenerate, generating, backendRe
             {/* Main Text Area - No Border */}
             <textarea 
                 className="w-full bg-transparent border-none text-lg p-5 focus:ring-0 focus:outline-none resize-none placeholder:text-gray-600 min-h-[120px]"
-                placeholder={config.type === 'loop' ? "Describe your loop..." : "Describe your sound effect..."}
+                placeholder={config.type === 'loop' ? "Describe your loop (e.g., shaker, kick, bass, synth)..." : "Describe your full song (genres, mood, vocals)..."}
                 value={config.prompt}
                 onChange={(e) => setConfig({ ...config, prompt: e.target.value })}
                 onKeyDown={(e) => {
@@ -177,12 +179,12 @@ export function MegaInput({ config, setConfig, onGenerate, generating, backendRe
                             )}
                             
                             <Input 
-                                label="Duration (s)"
+                                label={config.type === 'loop' ? "Duration (s)" : "Duration (s)"}
                                 type="number"
                                 value={config.length}
                                 onChange={(e) => setConfig({ ...config, length: e.target.value })}
-                                min={1}
-                                max={30}
+                                min={config.type === 'loop' ? 1 : 10}
+                                max={config.type === 'loop' ? 10 : 240}
                                 className="bg-[#252525] border-transparent focus:bg-[#333]"
                             />
                         </div>
@@ -200,36 +202,13 @@ export function MegaInput({ config, setConfig, onGenerate, generating, backendRe
                         className="overflow-hidden bg-panel"
                     >
                          <div className="p-4 pt-0 grid grid-cols-2 gap-4">
-                            {config.type === 'loop' && (
-                                <>
-                                <Input 
-                                    label="Temperature"
-                                    type="number"
-                                    step="0.1"
-                                    min="0"
-                                    max="2"
-                                    value={config.temperature}
-                                    onChange={(e) => setConfig({ ...config, temperature: e.target.value })}
-                                    className="bg-[#252525] border-transparent focus:bg-[#333]"
-                                />
-                                <Input 
-                                    label="Top K"
-                                    type="number"
-                                    value={config.topK}
-                                    onChange={(e) => setConfig({ ...config, topK: e.target.value })}
-                                    className="bg-[#252525] border-transparent focus:bg-[#333]"
-                                />
-                                </>
-                            )}
-                            {config.type === 'one-shot' && (
-                                <Input 
-                                    label="Steps"
-                                    type="number"
-                                    value={config.steps}
-                                    onChange={(e) => setConfig({ ...config, steps: e.target.value })}
-                                    className="bg-[#252525] border-transparent focus:bg-[#333]"
-                                />
-                            )}
+                            <Input 
+                                label="Steps"
+                                type="number"
+                                value={config.steps}
+                                onChange={(e) => setConfig({ ...config, steps: e.target.value })}
+                                className="bg-[#252525] border-transparent focus:bg-[#333]"
+                            />
 
                             <Input 
                                 label="Seed"
@@ -239,15 +218,59 @@ export function MegaInput({ config, setConfig, onGenerate, generating, backendRe
                                 className="bg-[#252525] border-transparent focus:bg-[#333]"
                             />
                             
-                            <div className="col-span-2">
-                                <Input 
-                                    label="Negative Prompt (Context to avoid)"
-                                    placeholder="e.g. noise, distortion, drums"
-                                    value={config.negativePrompt}
-                                    onChange={(e) => setConfig({ ...config, negativePrompt: e.target.value })}
-                                    className="bg-[#252525] border-transparent focus:bg-[#333]"
-                                />
-                            </div>
+                            {config.type === 'loop' && (
+                                <div className="col-span-2">
+                                    <Input 
+                                        label="Negative Prompt (optional - what to avoid)"
+                                        placeholder="e.g., vocals, drums, distortion"
+                                        value={config.negativePrompt}
+                                        onChange={(e) => setConfig({ ...config, negativePrompt: e.target.value })}
+                                        className="bg-[#252525] border-transparent focus:bg-[#333]"
+                                    />
+                                </div>
+                            )}
+
+                            {config.type === 'one-shot' && (
+                                <div className="col-span-2">
+                                    <label className="block text-xs text-gray-400 mb-1.5 font-medium">Lyrics (optional)</label>
+                                    <textarea
+                                        placeholder="Add lyrics here"
+                                        value={config.lyrics}
+                                        onChange={(e) => setConfig({ ...config, lyrics: e.target.value })}
+                                        rows={3}
+                                        className="w-full bg-[#252525] border-transparent focus:bg-[#333] rounded-lg text-sm p-2.5 resize-none placeholder:text-gray-600 focus:outline-none focus:ring-1 focus:ring-primary/50"
+                                    />
+                                </div>
+                            )}
+                            
+                            {config.type === 'one-shot' && (
+                                <>
+                                    <div>
+                                        <label className="block text-xs text-gray-400 mb-1.5 font-medium">Scheduler Type</label>
+                                        <select
+                                            value={config.schedulerType}
+                                            onChange={(e) => setConfig({ ...config, schedulerType: e.target.value })}
+                                            className="w-full bg-[#252525] border-transparent focus:bg-[#333] rounded-lg text-sm p-2.5 focus:outline-none focus:ring-1 focus:ring-primary/50"
+                                        >
+                                            <option value="euler">Euler (Recommended)</option>
+                                            <option value="dpm">DPM</option>
+                                            <option value="ddim">DDIM</option>
+                                        </select>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-xs text-gray-400 mb-1.5 font-medium">CFG Type</label>
+                                        <select
+                                            value={config.cfgType}
+                                            onChange={(e) => setConfig({ ...config, cfgType: e.target.value })}
+                                            className="w-full bg-[#252525] border-transparent focus:bg-[#333] rounded-lg text-sm p-2.5 focus:outline-none focus:ring-1 focus:ring-primary/50"
+                                        >
+                                            <option value="apg">APG - Adaptive (Recommended)</option>
+                                            <option value="standard">Standard</option>
+                                        </select>
+                                    </div>
+                                </>
+                            )}
                          </div>
                     </motion.div>
                 )}

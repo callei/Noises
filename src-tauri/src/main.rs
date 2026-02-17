@@ -5,9 +5,14 @@
 
 use std::process::{Child, Stdio};
 use std::sync::{Arc, Mutex};
-use tauri::{Manager, RunEvent};
-use tauri_plugin_shell::process::{CommandChild, CommandEvent};
+use tauri::RunEvent;
+
+#[cfg(not(debug_assertions))]
 use tauri_plugin_shell::ShellExt;
+
+use tauri_plugin_shell::process::CommandChild;
+
+const BACKEND_URL: &str = "http://127.0.0.1:8000";
 
 // Structure to hold the child process handle.
 // We need to support both std::process::Child (for dev) and CommandChild (for prod/sidecar)
@@ -17,8 +22,44 @@ struct BackendState {
     prod_process: Option<CommandChild>,
 }
 
-// Wrap in Arc<Mutex> so it can be shared across the app
-type SharedBackendState = Arc<Mutex<BackendState>>;
+#[tauri::command]
+async fn check_backend_health() -> Result<bool, String> {
+    match reqwest::get(format!("{}/health", BACKEND_URL)).await {
+        Ok(res) => Ok(res.status().is_success()),
+        Err(_) => Ok(false),
+    }
+}
+
+#[tauri::command]
+async fn generate_audio(config: serde_json::Value) -> Result<serde_json::Value, String> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(600)) // 10 min for GPU inference
+        .build()
+        .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
+
+    let res = client
+        .post(format!("{}/generate", BACKEND_URL))
+        .json(&config)
+        .send()
+        .await
+        .map_err(|e| format!("Backend request failed: {}", e))?;
+
+    if !res.status().is_success() {
+        let status = res.status();
+        let body = res.text().await.unwrap_or_default();
+        // Try to extract FastAPI's "detail" field
+        if let Ok(err_json) = serde_json::from_str::<serde_json::Value>(&body) {
+            if let Some(detail) = err_json.get("detail").and_then(|d| d.as_str()) {
+                return Err(detail.to_string());
+            }
+        }
+        return Err(format!("Backend error ({}): {}", status, body));
+    }
+
+    res.json::<serde_json::Value>()
+        .await
+        .map_err(|e| format!("Failed to parse response: {}", e))
+}
 
 #[tauri::command]
 fn show_in_folder(path: String) {
@@ -45,6 +86,13 @@ fn show_in_folder(path: String) {
   }
 }
 
+#[tauri::command]
+fn delete_file(path: String) -> Result<(), String> {
+  std::fs::remove_file(&path)
+    .map_err(|e| format!("Failed to delete file: {}", e))?;
+  Ok(())
+}
+
 fn main() {
     let backend_state = Arc::new(Mutex::new(BackendState {
         dev_process: None,
@@ -57,13 +105,24 @@ fn main() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_drag::init())
-        .invoke_handler(tauri::generate_handler![show_in_folder])
+        .invoke_handler(tauri::generate_handler![show_in_folder, delete_file, check_backend_health, generate_audio])
         .setup(move |app| {
+            #[cfg(debug_assertions)]
+            let _ = app; // Suppress unused warning in debug mode
+            
             let pid = std::process::id();
 
             #[cfg(debug_assertions)]
             {
-                let mut cmd = std::process::Command::new("python");
+                // Use the venv Python for dev mode
+                let venv_python = std::path::Path::new("../.venv312/Scripts/python.exe");
+                let python_cmd = if venv_python.exists() {
+                    venv_python.to_str().unwrap().to_string()
+                } else {
+                    "python".to_string()
+                };
+                
+                let mut cmd = std::process::Command::new(&python_cmd);
                 cmd.arg("../backend/main.py");
                 cmd.arg("--parent-pid");
                 cmd.arg(pid.to_string());

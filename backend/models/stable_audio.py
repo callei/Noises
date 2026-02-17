@@ -24,8 +24,8 @@ class StableAudioOpenModel:
                     torch_dtype=torch.float16 if self.device == "cuda" else torch.float32,
                     local_files_only=True
                 )
-            except OSError:
-                print("Model not found locally, downloading...")
+            except (OSError, ValueError):
+                print("Model not found locally, downloading Stable Audio Open...")
                 self.pipe = StableAudioPipeline.from_pretrained(
                     "stabilityai/stable-audio-open-1.0",
                     torch_dtype=torch.float16 if self.device == "cuda" else torch.float32
@@ -43,9 +43,23 @@ class StableAudioOpenModel:
             self.is_loaded = False
             raise
 
+    def unload(self):
+        """Free GPU memory when switching to another model."""
+        if self.pipe is not None:
+            # Delete model components directly to free memory (no need to move to CPU first)
+            del self.pipe.transformer
+            del self.pipe.vae
+            del self.pipe.text_encoder
+            self.pipe = None
+            self.is_loaded = False
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        print("Stable Audio unloaded, VRAM freed.")
+
     def generate(
         self,
         prompt: str,
+        negative_prompt: str = "",
         duration_seconds: float = 2.0,
         variations: int = 1,
         num_inference_steps: int = 150,
@@ -56,6 +70,10 @@ class StableAudioOpenModel:
 
         if not self.is_loaded or self.pipe is None:
             self.load()
+        
+        # Ensure model is on GPU (may have been moved to CPU by unload())
+        if self.pipe.device.type != self.device and self.device == "cuda":
+            self.pipe = self.pipe.to(self.device)
 
         try:
             generator = None
@@ -72,6 +90,7 @@ class StableAudioOpenModel:
 
             output = self.pipe(
                 prompt,
+                negative_prompt=negative_prompt if negative_prompt else None,
                 audio_end_in_s=duration_seconds,
                 num_inference_steps=num_inference_steps,
                 guidance_scale=guidance_scale,

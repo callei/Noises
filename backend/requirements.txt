@@ -11,5 +11,5 @@ numpy
 python-multipart
 diffusers
 accelerate
-# git+https://github.com/ace-step/ACE-Step.git
+git+https://github.com/ace-step/ACE-Step.git
 psutil

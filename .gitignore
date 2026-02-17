@@ -33,6 +33,7 @@ backend/*.spec
 # Virtual Environments
 venv/
 .venv/
+.venv312/
 env/
 .env/
 ENV/

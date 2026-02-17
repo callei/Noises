@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Play, Pause, Download, Volume2, RefreshCw, VolumeX, FolderOpen, GripVertical } from 'lucide-react';
+import { Play, Pause, Volume2, RefreshCw, VolumeX, FolderOpen, GripVertical, Trash2 } from 'lucide-react';
 import { Button } from './Button';
 import { readFile } from '@tauri-apps/plugin-fs';
 import { invoke } from '@tauri-apps/api/core';
@@ -8,7 +8,7 @@ import { startDrag } from '@crabnebula/tauri-plugin-drag';
 // but try passing undefined first, or a known path.
 // The error says "missing required key image".
 
-export function AudioPlayer({ filePath, fileName, onRegenerate }) {
+export function AudioPlayer({ filePath, fileName, onRegenerate, onDelete }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const [volume, setVolume] = useState(0.8);
@@ -104,6 +104,18 @@ export function AudioPlayer({ filePath, fileName, onRegenerate }) {
       }
   };
 
+  const handleDelete = async () => {
+      if (!confirm('Are you sure you want to delete this file?')) return;
+      
+      try {
+          await invoke('delete_file', { path: filePath });
+          if (onDelete) onDelete();
+      } catch (err) {
+          console.error("Failed to delete file:", err);
+          alert('Failed to delete file: ' + err);
+      }
+  };
+
   const handleDragStart = async (e) => {
       console.log("Drag started for:", filePath);
       
@@ -157,6 +169,9 @@ export function AudioPlayer({ filePath, fileName, onRegenerate }) {
                         <RefreshCw size={16} />
                      </Button>
                  )}
+                 <Button size="sm" variant="ghost" onClick={handleDelete} title="Delete" className="hover:text-red-500">
+                    <Trash2 size={16} />
+                 </Button>
             </div>
         </div>
 
@@ -174,7 +189,7 @@ export function AudioPlayer({ filePath, fileName, onRegenerate }) {
             >
                 <div className="h-1.5 w-full bg-gray-700/50 rounded-full overflow-hidden relative">
                     <div 
-                        className="h-full bg-primary transition-[width] duration-75 ease-linear group-hover:bg-primary-hover"
+                        className="h-full bg-primary"
                         style={{ width: `${progress}%` }}
                     />
                 </div>

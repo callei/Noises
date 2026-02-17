@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import { TitleBar } from './components/TitleBar';
 import { MegaInput } from './components/MegaInput';
 import { AudioPlayer } from './components/AudioPlayer';
@@ -9,16 +10,17 @@ import { motion, AnimatePresence } from 'framer-motion';
 function App() {
   const [config, setConfig] = useState({
     prompt: "",
+    negativePrompt: "",
+    lyrics: "",
     type: "loop",
     bpm: 120,
     key: "C minor",
-    length: 2,
-    negativePrompt: "",
-    steps: 100,
+    length: 4,
+    steps: 200,
     guidance: 7.0,
     seed: "",
-    temperature: 1.0,
-    topK: 250
+    schedulerType: "euler",
+    cfgType: "apg",
   });
 
   const [presets, setPresets] = useState([]);
@@ -47,8 +49,8 @@ function App() {
   useEffect(() => {
     const interval = setInterval(async () => {
       try {
-        const res = await fetch('http://localhost:8000/health');
-        if (res.ok) {
+        const ready = await invoke('check_backend_health');
+        if (ready) {
             setBackendReady(true);
             clearInterval(interval);
         }
@@ -75,35 +77,23 @@ function App() {
         variations: 1
       };
 
-      if (config.type === 'one-shot') {
+      if (config.type === 'loop') {
+        // Stable Audio - loops & short samples
         if (config.negativePrompt) payload.negative_prompt = config.negativePrompt;
         payload.steps = Number(config.steps);
         payload.guidance = Number(config.guidance);
         if (config.seed !== "") payload.seed = Number(config.seed);
       } else {
+         // ACE-Step - full songs with vocals
+         if (config.lyrics) payload.lyrics = config.lyrics;
+         payload.steps = Number(config.steps);
          payload.guidance = Number(config.guidance);
-         payload.temperature = Number(config.temperature);
-         payload.top_k = Number(config.topK);
+         payload.scheduler_type = config.schedulerType;
+         payload.cfg_type = config.cfgType;
          if (config.seed !== "") payload.seed = Number(config.seed);
       }
 
-      const response = await fetch('http://localhost:8000/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
-      if (!response.ok) {
-        let errorMsg = 'Generation failed';
-        try {
-          const errData = await response.json();
-          if (errData.detail) errorMsg = errData.detail;
-        } catch (_) {
-          // keep default message
-        }
-        throw new Error(errorMsg);
-      }
-      const data = await response.json();
+      const data = await invoke('generate_audio', { config: payload });
       
       setResult({
         file: data.files[0].file,
@@ -112,7 +102,8 @@ function App() {
       });
 
     } catch (err) {
-      setError(err.message);
+      // invoke() throws strings directly, not Error objects
+      setError(typeof err === 'string' ? err : err.message);
     } finally {
       setGenerating(false);
     }
@@ -153,8 +144,9 @@ function App() {
             newPrompt += option.prompt;
         }
 
+        // Only add negative prompts for loops (Stable Audio supports them)
         let newNeg = prev.negativePrompt || "";
-        if (option.negative && !newNeg.includes(option.negative)) {
+        if (prev.type === 'loop' && option.negative && !newNeg.includes(option.negative)) {
             newNeg = newNeg ? `${newNeg}, ${option.negative}` : option.negative;
         }
 
@@ -223,6 +215,7 @@ function App() {
                                 filePath={result.path} 
                                 fileName={result.file}
                                 onRegenerate={handleGenerate}
+                                onDelete={() => setResult(null)}
                             />
                         </motion.div>
                     )}
