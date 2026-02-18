@@ -78,6 +78,11 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
+# --- Runtime Cache (external, for reference) ---
+# PyTorch is installed at runtime to: %ProgramData%\Noises\torch_runtime\
+# Setup log is written to:            %LOCALAPPDATA%\Noises\setup.log
+# These paths are outside the repo and not tracked by git.
+
 # --- IDE / Editor ---
 .vscode/
 .idea/

@@ -33,7 +33,11 @@ It currently supports two generation modes:
 2. Download the installer (`Noises_Setup.exe`).
 3. Run it, install it, make noise.
 
-> **Note:** The first time you generate audio, it will download the required models automatically from HuggingFace (~3GB for Stable Audio, ~3.5GB for ACE-Step). This happens once, then everything runs offline. If something breaks, please open an issue!
+> **Requirements:** An NVIDIA GPU (RTX 3060 8GB or better recommended). No manual CUDA installation needed — Noises handles everything automatically.
+
+> **First-run setup:** On first launch, the installer will download and cache PyTorch with CUDA support (~2.5 GB) to `C:\ProgramData\Noises\torch_runtime\`. This is a one-time step. AI models (~3 GB for Stable Audio, ~3.5 GB for ACE-Step) are also downloaded on first use and cached in `~/.cache/huggingface/`. Everything runs offline after that.
+
+> **Troubleshooting:** If setup fails, check `%LOCALAPPDATA%\Noises\setup.log` for details. If something breaks, please open an issue!
 
 ## Task Manager & Processes
 
@@ -59,12 +63,12 @@ If you want to hack on it yourself:
 ### Prerequisites
 
 *   **Node.js** 18+
-*   **Python** 3.11+ (3.12 recommended)
+*   **Python** 3.12 (MS Store or python.org — must be Python 3.12 specifically, as the packaged backend is built against it)
 *   **Rust** (installed via [rustup](https://rustup.rs))
 *   **System Requirements:**
     *   **GPU:** NVIDIA GeForce RTX 3060 (8GB VRAM) or better recommended.
     *   **Minimum:** NVIDIA GPU with 6GB VRAM (Stable Audio). ACE-Step uses CPU offloading to fit within ~8GB peak VRAM.
-    *   **Disk Space:** ~8GB free for models (downloaded on first use).
+    *   **Disk Space:** ~11 GB free — ~2.5 GB for PyTorch (`%ProgramData%\Noises\torch_runtime`) + ~8 GB for models (`~/.cache/huggingface`).
 
 ### Setup
 

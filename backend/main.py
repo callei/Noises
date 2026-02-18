@@ -14,6 +14,31 @@ import psutil
 import shutil
 from contextlib import asynccontextmanager
 
+# === CUDA BOOTSTRAP =========================================================
+# Must run BEFORE any `import torch` anywhere in the app.
+# In dev mode (venv w/ CUDA torch): instant no-op.
+# In production: loads torch from %PROGRAMDATA%/Noises/torch_runtime/
+#                (installed there by the NSIS installer via --setup-torch).
+from cuda_setup import load_torch, install_torch
+
+# Handle --setup-torch early (called by NSIS installer, not during normal use)
+if "--setup-torch" in sys.argv:
+    try:
+        install_torch()
+        sys.exit(0)
+    except Exception as e:
+        # Log to file so the error is visible even from a windowed app
+        try:
+            from cuda_setup import _log
+            _log(f"[Setup] FATAL: {e}")
+        except Exception:
+            pass
+        print(f"Setup failed: {e}", file=sys.stderr)
+        sys.exit(1)
+
+load_torch()
+# =============================================================================
+
 def _clean_old_mei_dirs():
     """
     Cleanup old/orphaned _MEI temp directories from previous runs.
@@ -71,7 +96,7 @@ from models.acestep import ACEStepModel
 from models.stable_audio import StableAudioOpenModel
 from audio.postprocess import normalize_audio, fade_audio
 from audio.utils import save_wav, get_next_filename
-from config import LOOPS_DIR, ONESHOTS_DIR
+from config import LOOPS_DIR, ONESHOTS_DIR, DEVICE
 
 def _get_lock_file_path():
     return os.path.join(tempfile.gettempdir(), "noises_backend.lock")
@@ -154,7 +179,14 @@ def shutdown():
 
 @app.get("/health")
 def health_check():
-    return {"status": "ok"}
+    return {
+        "status": "ok",
+        "device": DEVICE,
+        "cuda_available": torch.cuda.is_available(),
+        "torch_version": torch.__version__,
+        "cuda_version": torch.version.cuda,
+        "gpu_name": torch.cuda.get_device_name(0) if torch.cuda.is_available() else None,
+    }
 
 class GenerateRequest(BaseModel):
     type: str
@@ -259,6 +291,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--parent-pid", type=int, help="PID of the parent process to monitor")
+    parser.add_argument("--setup-torch", action="store_true", help="Install PyTorch for this GPU (called by installer)")
     args, _ = parser.parse_known_args()
 
     def _monitor_parent(pid):

@@ -1,7 +1,19 @@
+# =============================================================================
+# Noises — Python Backend Dependencies
+# =============================================================================
+#
+# PyTorch is NOT listed here.  It is installed automatically at runtime
+# by cuda_setup.py with the correct CUDA variant for the user's GPU.
+#
+# For local development, install torch manually FIRST:
+#   pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu126
+#
+# Then install the rest:
+#   pip install -r requirements.txt
+# =============================================================================
+
 fastapi
 uvicorn
-torch>=2.0.0
-torchaudio>=2.0.0
 torchsde
 transformers>=4.31.0
 scipy

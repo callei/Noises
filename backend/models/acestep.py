@@ -19,6 +19,14 @@ class ACEStepModel:
         if self.is_loaded and self.pipe is not None:
             return
 
+        if self.device != "cuda":
+            raise RuntimeError(
+                "ACE-Step requires an NVIDIA GPU with CUDA support. "
+                f"Detected device: {self.device}. "
+                "If you have an NVIDIA GPU, ensure CUDA drivers are installed "
+                "and torch.cuda.is_available() returns True."
+            )
+
         try:
             print(f"Loading ACE-Step ({self.dtype})...")
             from acestep.pipeline_ace_step import ACEStepPipeline

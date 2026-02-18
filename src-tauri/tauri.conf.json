@@ -1,6 +1,6 @@
 {
   "productName": "Noises",
-  "version": "0.1.1",
+  "version": "2.1.0",
   "identifier": "com.noises.dev",
   "build": {
     "beforeDevCommand": "npm run dev --prefix frontend",
@@ -49,7 +49,8 @@
     ],
     "windows": {
       "nsis": {
-        "installMode": "perMachine"
+        "installMode": "perMachine",
+        "installerHooks": "nsis/installer-hooks.nsh"
       }
     }
   }

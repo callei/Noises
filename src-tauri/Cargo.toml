@@ -1,6 +1,6 @@
 [package]
 name = "Noises"
-version = "0.1.1"
+version = "2.1.0"
 description = "AI Music Generator"
 authors = ["Carl J"]
 edition = "2024"
