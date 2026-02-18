@@ -7,9 +7,7 @@ A local AI music generator that lives on your desktop. No subscriptions, no clou
    <img src="screenshots/2.png" width="49%" /> 
 </p>
 
-## What is this?
-
-**Noises** is a desktop app built to make generating AI music, samples, and loops effortless. It uses **Tauri** for a lightweight native UI and **Python** to run AI models entirely on your own hardware.
+**Noises** is a desktop app built to make generating AI music, samples, and loops effortless. It uses **Python** to run AI models entirely on your own hardware.
 
 It currently supports two generation modes:
 
